@@ -583,8 +583,60 @@ function buildAndDrawContinuousPlan(entryPlan, startElev, targetDepth, rodL, max
     while (runningX < flatSectionEndX) {
         rodCounter++;
         runningX = Math.min(runningX + rodL, flatSectionEndX);
+        
         let currentGroundHeight = getInterpolatedGround(runningX, groundPoints);
-        let boreElevationValue = startElev - targetDepth;
+        let localTargetDepth = targetDepth; 
+
+        mappedUtilities.forEach(u => {
+            if (Math.abs(runningX - u.absoluteX) <= rodL * 1.5) { 
+                if (u.clearance === 'under') {
+                    let requiredDepthUnder = (startElev - u.bottomElevation) + safetyBuffer;
+                    if (requiredDepthUnder > localTargetDepth) {
+                        localTargetDepth = requiredDepthUnder;
+                    }
+                } else if (u.clearance === 'over') {
+                    let requiredDepthOver = (startElev - u.topElevation) - safetyBuffer;
+                    if (requiredDepthOver < minSurfaceDepth) {
+                        requiredDepthOver = minSurfaceDepth;
+                    }
+                    localTargetDepth = requiredDepthOver;
+                }
+            }
+        });
+
+        let previousRod = continuousRods[continuousRods.length - 1];
+        let finalizedBoreElevation;
+
+        if (previousRod) {
+            let previousDepth = currentGroundHeight - previousRod.el;
+            let maxVerticalChangePerRod = (maxBend / 100) * rodL;
+
+            if (previousDepth < localTargetDepth) {
+                let naturalNextDepth = previousDepth + maxVerticalChangePerRod;
+                let stepDepth = Math.min(naturalNextDepth, localTargetDepth);
+                finalizedBoreElevation = currentGroundHeight - stepDepth;
+            } else if (previousDepth > localTargetDepth) {
+                let naturalNextDepth = previousDepth - maxVerticalChangePerRod;
+                let stepDepth = Math.max(naturalNextDepth, localTargetDepth);
+                finalizedBoreElevation = currentGroundHeight - stepDepth;
+            } else {
+                finalizedBoreElevation = currentGroundHeight - localTargetDepth;
+            }
+        } else {
+            finalizedBoreElevation = startElev - localTargetDepth;
+        }
+
+        let verifiedDepth = currentGroundHeight - finalizedBoreElevation;
+        if (verifiedDepth < minSurfaceDepth) {
+            finalizedBoreElevation = currentGroundHeight - minSurfaceDepth;
+        }
+
+        let calculatedPitch = 0;
+        if (previousRod) {
+            let deltaY = finalizedBoreElevation - previousRod.el;
+            let deltaX = runningX - previousRod.x;
+            calculatedPitch = (deltaY / deltaX) * 100;
+        }
 
         continuousRods.push({
             rodNum: rodCounter,
@@ -592,9 +644,9 @@ function buildAndDrawContinuousPlan(entryPlan, startElev, targetDepth, rodL, max
             rowClass: "row-flat",
             badgeClass: "badge-flat",
             x: runningX,
-            el: boreElevationValue,
-            pitch: 0,
-            fromGround: currentGroundHeight - boreElevationValue
+            el: finalizedBoreElevation,
+            pitch: calculatedPitch,
+            fromGround: currentGroundHeight - finalizedBoreElevation
         });
     }
 
@@ -697,13 +749,11 @@ function drawEntryGraph(plans, targetDepth, activeSelection) {
 
     let rodL = parseFloat(document.getElementById('rodLength').value) || 15;
 
-    // Added identical background ticks/grids setup to match graph 2 
     ctx.fillStyle = '#64748b';
     ctx.font = "9px sans-serif";
     ctx.strokeStyle = '#e2e8f0';
     ctx.lineWidth = 0.5;
 
-    // X-Axis Scale Grid Rendering
     for (let x = 0; x <= maxX; x += rodL) {
         let wx = marginX + x * scaleX;
         ctx.beginPath(); ctx.moveTo(wx, marginY); ctx.lineTo(wx, canvas.height - marginY - 20); ctx.stroke();
@@ -713,7 +763,6 @@ function drawEntryGraph(plans, targetDepth, activeSelection) {
         ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5;
     }
 
-    // Y-Axis Depth Scale Grid Rendering (Shows positive depth increments going down)
     let tickStepY = targetDepth > 25 ? 5 : 2;
     for (let y = 0; y <= maxY; y += tickStepY) {
         let wy = marginY + y * scaleY;
@@ -724,7 +773,6 @@ function drawEntryGraph(plans, targetDepth, activeSelection) {
         ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5;
     }
 
-    // Baseline Anchor Definition Trace
     ctx.beginPath(); ctx.strokeStyle = '#475569'; ctx.lineWidth = 2;
     ctx.moveTo(marginX, marginY); ctx.lineTo(canvas.width - marginX, marginY); ctx.stroke();
     ctx.fillStyle = '#475569'; ctx.font = "bold 11px sans-serif"; ctx.fillText("Ground Entry Target Datum Baseline (0.0 ft)", marginX, marginY - 10);
@@ -751,8 +799,22 @@ function drawBorePlanGraph(masterRods, utilities, groundPoints, buffer, ceiling,
 
     let minX = 0;
     let maxX = Math.max(...masterRods.map(p => p.x), 150);
-    let minEl = Math.min(...masterRods.map(p => p.el), startElev - targetDepth * 1.6);
-    let maxEl = Math.max(...groundPoints.map(g => g.el), startElev + 10);
+    
+    // Calculate precise data bounds
+    let rawMinEl = Math.min(...masterRods.map(p => p.el), startElev - targetDepth * 1.6);
+    let rawMaxEl = Math.max(...groundPoints.map(g => g.el), startElev + 10);
+    let elDifference = rawMaxEl - rawMinEl;
+
+    // Fix: Prevent hyper-zoom/rough layout view by enforcing a minimum altitude viewport span (e.g., 30ft)
+    if (elDifference < 30) {
+        let centerEl = (rawMinEl + rawMaxEl) / 2;
+        minEl = centerEl - 15;
+        maxEl = centerEl + 15;
+    } else {
+        // Apply smooth outward padding offsets
+        minEl = rawMinEl - (elDifference * 0.15);
+        maxEl = rawMaxEl + (elDifference * 0.1);
+    }
 
     let marginX = 60, marginY = 40;
     let scaleX = (canvas.width - marginX * 2) / (maxX - minX);
