@@ -295,6 +295,7 @@ function updateUtilityField(id, field, value) {
             if (topInput) topInput.value = u.groundElevation;
         }
     }
+    calculateBore();
 }
 
 function renderUtilityRows() {
@@ -579,81 +580,79 @@ function buildAndDrawContinuousPlan(entryPlan, startElev, targetDepth, rodL, max
         finishX = flatSectionEndX + exitCurveWidthX;
     }
 
+    // ACTIVE REACTIONARY STEERING CALCULATION LOOP
     let runningX = flatSectionStartX;
+    let currentBoreEl = startElev - targetDepth;
+    let currentPitch = 0;
+
     while (runningX < flatSectionEndX) {
         rodCounter++;
-        runningX = Math.min(runningX + rodL, flatSectionEndX);
-        
-        let currentGroundHeight = getInterpolatedGround(runningX, groundPoints);
-        let localTargetDepth = targetDepth; 
+        let nextX = Math.min(runningX + rodL, flatSectionEndX);
+        let actualStepL = nextX - runningX;
 
+        // Default layout baseline reference
+        let targetBoreEl = startElev - targetDepth; 
+
+        // Scan ahead dynamically for upcoming crossing conduits
         mappedUtilities.forEach(u => {
-            if (Math.abs(runningX - u.absoluteX) <= rodL * 1.5) { 
+            if (u.absoluteX >= runningX && u.absoluteX <= runningX + 45) {
                 if (u.clearance === 'under') {
-                    let requiredDepthUnder = (startElev - u.bottomElevation) + safetyBuffer;
-                    if (requiredDepthUnder > localTargetDepth) {
-                        localTargetDepth = requiredDepthUnder;
+                    let clearanceCeiling = u.bottomElevation - safetyBuffer;
+                    if (targetBoreEl > clearanceCeiling) {
+                        targetBoreEl = clearanceCeiling;
                     }
                 } else if (u.clearance === 'over') {
-                    let requiredDepthOver = (startElev - u.topElevation) - safetyBuffer;
-                    if (requiredDepthOver < minSurfaceDepth) {
-                        requiredDepthOver = minSurfaceDepth;
+                    let clearanceFloor = u.topElevation + safetyBuffer;
+                    if (targetBoreEl < clearanceFloor) {
+                        targetBoreEl = clearanceFloor;
                     }
-                    localTargetDepth = requiredDepthOver;
                 }
             }
         });
 
-        let previousRod = continuousRods[continuousRods.length - 1];
-        let finalizedBoreElevation;
+        // Maintain ceiling boundaries against shallow limits
+        let currentGroundHeight = getInterpolatedGround(nextX, groundPoints);
+        let absoluteCeilingLimit = currentGroundHeight - minSurfaceDepth;
+        if (targetBoreEl > absoluteCeilingLimit) {
+            targetBoreEl = absoluteCeilingLimit;
+        }
 
-        if (previousRod) {
-            let previousDepth = currentGroundHeight - previousRod.el;
-            let maxVerticalChangePerRod = (maxBend / 100) * rodL;
+        // Steer vector matching limits to maximum structural pitch bend limits
+        let heightDelta = targetBoreEl - currentBoreEl;
+        let maxVerticalChange = (maxBend / 100) * actualStepL;
 
-            if (previousDepth < localTargetDepth) {
-                let naturalNextDepth = previousDepth + maxVerticalChangePerRod;
-                let stepDepth = Math.min(naturalNextDepth, localTargetDepth);
-                finalizedBoreElevation = currentGroundHeight - stepDepth;
-            } else if (previousDepth > localTargetDepth) {
-                let naturalNextDepth = previousDepth - maxVerticalChangePerRod;
-                let stepDepth = Math.max(naturalNextDepth, localTargetDepth);
-                finalizedBoreElevation = currentGroundHeight - stepDepth;
+        if (Math.abs(heightDelta) > 0.05) {
+            if (heightDelta > 0) {
+                currentPitch = Math.min(maxBend, currentPitch + (maxBend * 0.4));
+                currentBoreEl += Math.min(heightDelta, maxVerticalChange);
             } else {
-                finalizedBoreElevation = currentGroundHeight - localTargetDepth;
+                currentPitch = Math.max(-maxBend, currentPitch - (maxBend * 0.4));
+                currentBoreEl -= Math.min(Math.abs(heightDelta), maxVerticalChange);
             }
         } else {
-            finalizedBoreElevation = startElev - localTargetDepth;
+            currentPitch = currentPitch * 0.4;
+            if (Math.abs(currentPitch) < 0.2) currentPitch = 0;
+            currentBoreEl = targetBoreEl;
         }
 
-        let verifiedDepth = currentGroundHeight - finalizedBoreElevation;
-        if (verifiedDepth < minSurfaceDepth) {
-            finalizedBoreElevation = currentGroundHeight - minSurfaceDepth;
-        }
-
-        let calculatedPitch = 0;
-        if (previousRod) {
-            let deltaY = finalizedBoreElevation - previousRod.el;
-            let deltaX = runningX - previousRod.x;
-            calculatedPitch = (deltaY / deltaX) * 100;
-        }
+        runningX = nextX;
 
         continuousRods.push({
             rodNum: rodCounter,
-            type: "Mainline Run Rod",
+            type: Math.abs(currentPitch) > 1 ? "Steering Corridor Adjustment" : "Mainline Run Rod",
             rowClass: "row-flat",
             badgeClass: "badge-flat",
             x: runningX,
-            el: finalizedBoreElevation,
-            pitch: calculatedPitch,
-            fromGround: currentGroundHeight - finalizedBoreElevation
+            el: currentBoreEl,
+            pitch: Math.abs(currentPitch),
+            fromGround: currentGroundHeight - currentBoreEl
         });
     }
 
     exitCurveTracks.forEach(track => {
         rodCounter++;
         let targetX = flatSectionEndX + track.dx;
-        let boreElevationValue = (startElev - targetDepth) + track.dy;
+        let boreElevationValue = currentBoreEl + track.dy; 
         let currentGroundHeight = getInterpolatedGround(targetX, groundPoints);
 
         continuousRods.push({
@@ -800,20 +799,19 @@ function drawBorePlanGraph(masterRods, utilities, groundPoints, buffer, ceiling,
     let minX = 0;
     let maxX = Math.max(...masterRods.map(p => p.x), 150);
     
-    // Calculate precise data bounds
+    // Expand upper graph limits safely so surface-level features like Storm Drains don't clip coordinates out of bounds
     let rawMinEl = Math.min(...masterRods.map(p => p.el), startElev - targetDepth * 1.6);
-    let rawMaxEl = Math.max(...groundPoints.map(g => g.el), startElev + 10);
+    let rawMaxEl = Math.max(...groundPoints.map(g => g.el), ...utilities.map(u => u.topElevation), startElev + 10);
     let elDifference = rawMaxEl - rawMinEl;
 
-    // Fix: Prevent hyper-zoom/rough layout view by enforcing a minimum altitude viewport span (e.g., 30ft)
+    let minEl, maxEl;
     if (elDifference < 30) {
         let centerEl = (rawMinEl + rawMaxEl) / 2;
-        minEl = centerEl - 15;
-        maxEl = centerEl + 15;
+        minEl = centerEl - 20;
+        maxEl = centerEl + 20;
     } else {
-        // Apply smooth outward padding offsets
         minEl = rawMinEl - (elDifference * 0.15);
-        maxEl = rawMaxEl + (elDifference * 0.1);
+        maxEl = rawMaxEl + (elDifference * 0.20); // Elevated padding overhead
     }
 
     let marginX = 60, marginY = 40;
@@ -874,8 +872,12 @@ function drawBorePlanGraph(masterRods, utilities, groundPoints, buffer, ceiling,
             ctx.fillStyle = isBreached ? '#e11d48' : '#475569';
             ctx.beginPath(); ctx.arc(cx, centerCY, rad, 0, 2*Math.PI); ctx.fill();
         } else {
-            ctx.fillRect(cx - wPixels/2 - bufferPixels, (u.type==='storm_drain'? cyTop : cyTop - bufferPixels), wPixels + bufferPixels*2, hPixels + (u.type==='storm_drain'? bufferPixels : bufferPixels*2));
-            ctx.strokeRect(cx - wPixels/2 - bufferPixels, (u.type==='storm_drain'? cyTop : cyTop - bufferPixels), wPixels + bufferPixels*2, hPixels + (u.type==='storm_drain'? bufferPixels : bufferPixels*2));
+            // Calculated dynamic ceiling bounding limits safely so buffers do not cross chart frame ceilings
+            let rectTopY = (u.type === 'storm_drain') ? cyTop : cyTop - bufferPixels;
+            let rectHeight = (u.type === 'storm_drain') ? hPixels + bufferPixels : hPixels + (bufferPixels * 2);
+
+            ctx.fillRect(cx - wPixels/2 - bufferPixels, rectTopY, wPixels + bufferPixels*2, rectHeight);
+            ctx.strokeRect(cx - wPixels/2 - bufferPixels, rectTopY, wPixels + bufferPixels*2, rectHeight);
             ctx.setLineDash([]);
             ctx.fillStyle = isBreached ? '#e11d48' : '#64748b';
             ctx.fillRect(cx - wPixels/2, cyTop, wPixels, hPixels);
