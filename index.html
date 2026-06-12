@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HDD Professional Alignment Plan & Profile Designer</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --text: #1e293b;
+            --border: #cbd5e1;
+            --danger: #e11d48;
+            --success: #16a34a;
+            --neutral: #64748b;
+            --color-short: #e11d48;
+            --color-med: #2563eb;
+            --color-long: #16a34a;
+            --color-custom: #9333ea;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: var(--bg-main); color: var(--text); padding: 20px; line-height: 1.5; }
+        
+        .container { max-width: 1600px; margin: 0 auto; display: grid; grid-template-columns: 440px 1fr; gap: 24px; }
+        header { grid-column: 1 / -1; text-align: center; margin-bottom: 15px; }
+        header h1 { color: #0f172a; font-size: 2.2rem; font-weight: 700; }
+
+        .sidebar { background: var(--bg-card); padding: 24px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); height: fit-content; max-height: 92vh; overflow-y: auto; }
+        .main-panel { display: flex; flex-direction: column; gap: 24px; }
+
+        .section-title { font-size: 1.1rem; font-weight: 600; color: #334155; margin-top: 20px; margin-bottom: 14px; padding-bottom: 6px; border-bottom: 2px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+        .section-title:first-of-type { margin-top: 0; }
+        
+        .form-group { margin-bottom: 12px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        
+        label { display: block; font-size: 0.85rem; font-weight: 500; color: #475569; margin-bottom: 4px; }
+        input, select { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; color: var(--text); background: #fff; }
+        input:focus, select:focus { outline: 2px solid #93c5fd; border-color: var(--primary); }
+        input:disabled { background: #f1f5f9; color: #94a3b8; }
+
+        .btn { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 1rem; cursor: pointer; transition: background 0.2s; margin-top: 15px; }
+        .btn:hover { background: var(--primary-hover); }
+        .btn-secondary { background: #f1f5f9; color: #475569; border: 1px solid var(--border); padding: 6px 12px; font-size: 0.8rem; border-radius: 4px; cursor: pointer; }
+        .btn-secondary:hover { background: #e2e8f0; }
+        .btn-action { background: #edf2f7; color: #2d3748; border: 1px solid #cbd5e0; padding: 6px 12px; font-size: 0.85rem; font-weight: 600; border-radius: 6px; width: 100%; margin-top: 6px; cursor: pointer; }
+        .btn-action:hover { background: #e2e8f0; }
+        .btn-danger { background: #fff1f2; color: var(--danger); border: 1px solid #fecdd3; padding: 4px 8px; font-size: 0.8rem; border-radius: 4px; cursor: pointer; }
+        .btn-danger:hover { background: #ffe4e6; }
+
+        .utility-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+        .utility-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 600; font-size: 0.85rem; color: #475569; }
+
+        .visualizer-container { background: var(--bg-card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); }
+        .visualizer-container h2 { font-size: 1.2rem; margin-bottom: 12px; color: #1e293b; display: flex; align-items: center; gap: 8px; }
+        canvas { width: 100%; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; display: block; }
+        
+        .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+        .card { background: var(--bg-card); border: 2px solid var(--border); border-radius: 12px; padding: 14px; }
+        .card h3 { font-size: 0.95rem; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #f1f5f9; }
+        
+        #shortCard { border-color: var(--color-short); }
+        #shortCard h3 { color: var(--color-short); }
+        #medCard { border-color: var(--color-med); }
+        #medCard h3 { color: var(--color-med); }
+        #longCard { border-color: var(--color-long); }
+        #longCard h3 { color: var(--color-long); }
+        #customCard { border-color: var(--color-custom); }
+        #customCard h3 { color: var(--color-custom); }
+        
+        .card.active { box-shadow: 0 0 0 4px rgba(147, 51, 234, 0.15); background: #faf5ff; }
+        
+        #errorBox { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; padding: 12px; border-radius: 6px; margin-bottom: 16px; display: none; font-size: 0.9rem; font-weight: 500; }
+        .rod-list { margin-top: 8px; font-size: 0.8rem; max-height: 140px; overflow-y: auto; background: #f8fafc; padding: 6px; border-radius: 6px; border: 1px solid #e2e8f0; }
+
+        .log-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
+        .log-table th { background: #f1f5f9; color: #475569; text-align: left; padding: 10px; border-bottom: 2px solid #cbd5e1; font-weight: 600; }
+        .log-table td { padding: 10px; border-bottom: 1px solid #e2e8f0; }
+        
+        .row-setback { background-color: #fffbeb !important; color: #92400e; }
+        .row-flat { background-color: #f0f9ff !important; color: #075985; }
+        .row-exit { background-color: #f0fdf4 !important; color: #166534; }
+        
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; display: inline-block; }
+        .badge-setback { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+        .badge-flat { background: #e0f2fe; color: #075985; border: 1px solid #bae6fd; }
+        .badge-exit { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+
+        .print-btn-container { grid-column: 1 / -1; text-align: right; margin-bottom: 10px; }
+        .btn-print { background: #0f172a; color: white; width: auto; display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 6px; font-weight: 600; border: none; cursor: pointer; }
+        .btn-print:hover { background: #1e293b; }
+
+        @media print {
+            body { background: #ffffff; color: #000000; padding: 0; margin: 0; font-size: 11pt; }
+            .container { display: block; max-width: 100%; }
+            .sidebar, .print-btn-container, header { display: none !important; }
+            .visualizer-container { box-shadow: none !important; padding: 0 !important; margin-bottom: 35px !important; page-break-inside: avoid; }
+            canvas { border: 1px solid #000000 !important; max-width: 100% !important; height: auto !important; }
+            #masterLogContainer { page-break-before: always; }
+            div { max-height: none !important; overflow: visible !important; overflow-y: visible !important; }
+            #tableWrapper { max-height: none !important; overflow: visible !important; }
+            .log-table { width: 100% !important; font-size: 10pt; }
+            .log-table th { background: #e2e8f0 !important; color: #000 !important; border-bottom: 2px solid #000 !important; }
+            .log-table td { border-bottom: 1px solid #94a3b8 !important; }
+            .row-setback { background: #fffbeb !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .row-flat { background: #f0f9ff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .row-exit { background: #f0fdf4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>HDD Dynamic Plan & Profile Designer</h1>
+</header>
+
+<div class="print-btn-container">
+    <button class="btn btn-print" onclick="window.print()">🖨️ Print Operational Bore Plans</button>
+</div>
+
+<div class="container">
+    <div class="sidebar">
+        <div id="errorBox"></div>
+        
+        <div class="section-title">1. Survey Reference Datum</div>
+        <div class="form-group">
+            <label>Start Ground Elevation Reference (ft Datum)</label>
+            <input type="number" id="startElev" value="100.0" step="0.1">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Entry Pitch (%)</label>
+                <input type="number" id="entryPitch" value="20" step="0.1">
+            </div>
+            <div class="form-group">
+                <label>Rod Length (ft)</label>
+                <input type="number" id="rodLength" value="15" step="0.1">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Target Floor Depth (ft)</label>
+                <input type="number" id="targetDepth" value="15" step="0.1">
+            </div>
+            <div class="form-group">
+                <label>Max Bend / Rod (%)</label>
+                <input type="number" id="maxBend" value="10" step="0.1">
+            </div>
+        </div>
+
+        <div class="section-title">2. Profile Target Path Alignment</div>
+        <div class="form-group">
+            <label>Selected Entry Path Logic</label>
+            <select id="startingPlan" onchange="calculateBore()">
+                <option value="short" selected>Short (Max Safe Curve)</option>
+                <option value="medium">Medium Sweep Curve</option>
+                <option value="long">Long Gradual Curve</option>
+                <option value="custom">Custom Desired Setback Path</option>
+            </select>
+        </div>
+        <div class="form-group" id="customSetbackGroup" style="display:none;">
+            <label>Custom Desired Setback (ft)</label>
+            <input type="number" id="desiredSetback" value="90" step="1">
+            <button class="btn-action" onclick="calculateBore()">🔄 Calculate Custom Setback</button>
+        </div>
+
+        <div class="section-title">
+            3. Chained Utility Corridor
+            <button class="btn-secondary" onclick="addUtilityRow()">+ Add Line</button>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Clearance Buffer (ft)</label>
+                <input type="number" id="safetyBuffer" value="2" step="0.5">
+            </div>
+            <div class="form-group">
+                <label>Ceiling Limit (ft)</label>
+                <input type="number" id="minSurfaceDepth" value="3" step="0.5">
+            </div>
+        </div>
+        <div id="utilitiesContainer"></div>
+
+        <div class="section-title">4. Exit Geometry Profile Target</div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Distance to Finish (ft)</label>
+                <input type="number" id="distanceToFinish" value="65" step="1">
+            </div>
+            <div class="form-group">
+                <label>Ground El. at Finish (ft)</label>
+                <input type="number" id="finishElev" value="102.5" step="0.1">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Exit Target Depth (ft)</label>
+            <input type="number" id="exitDepth" value="4.0" step="0.1">
+        </div>
+
+        <button class="btn" onclick="calculateBore()">Generate Complete Field Plans</button>
+    </div>
+
+    <div class="main-panel">
+        <div class="visualizer-container">
+            <h2>📊 Graph 1: Entry Path & Setback Analysis</h2>
+            <canvas id="entryCanvas" width="900" height="260"></canvas>
+            <div class="cards-grid" style="margin-top: 15px;">
+                <div class="card" id="shortCard"><h3>Short Path</h3><div id="shortOut"></div></div>
+                <div class="card" id="medCard"><h3>Medium Sweep</h3><div id="medOut"></div></div>
+                <div class="card" id="longCard"><h3>Long Gradual</h3><div id="longOut"></div></div>
+                <div class="card" id="customCard"><h3>Custom Target</h3><div id="customOut"></div></div>
+            </div>
+        </div>
+
+        <div class="visualizer-container">
+            <h2>🚧 Graph 2: Continuous Alignment Profile (Entry Stake to Exit Finish)</h2>
+            <canvas id="borePlanCanvas" width="900" height="380"></canvas>
+        </div>
+
+        <div class="visualizer-container" id="masterLogContainer">
+            <h2>📋 Master Bore-by-Bore Construction Log (Active Combined Profile)</h2>
+            <div id="tableWrapper" style="max-height: 500px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: #ffffff;">
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>Rod #</th>
+                            <th>Segment Classification</th>
+                            <th>Horizontal Distance (ft)</th>
+                            <th>Bore Elevation (ft Datum)</th>
+                            <th>True Depth From Ground (ft)</th>
+                            <th>Pitch Angle (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="masterLogBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let utilitiesList = [];
+
+function addUtilityRow() {
+    const id = Date.now();
+    const isFirst = utilitiesList.length === 0;
+    const utility = {
+        id: id,
+        name: "Utility Line " + (utilitiesList.length + 1),
+        type: "circle",
+        size: 12,
+        distanceFromPrev: isFirst ? 35 : 25, 
+        groundElevation: 100.0,
+        topElevation: 91.0,
+        bottomElevation: 89.5,
+        clearance: "under"
+    };
+    utilitiesList.push(utility);
+    renderUtilityRows();
+    calculateBore();
+}
+
+function removeUtilityRow(id) {
+    utilitiesList = utilitiesList.filter(u => u.id !== id);
+    renderUtilityRows();
+    calculateBore();
+}
+
+function updateUtilityField(id, field, value) {
+    const u = utilitiesList.find(util => util.id === id);
+    if (!u) return;
+
+    if (field === 'type') {
+        u[field] = value;
+        const topInput = document.getElementById(`topEl-${id}`);
+        if (value === 'storm_drain') {
+            u.topElevation = u.groundElevation;
+            if (topInput) {
+                topInput.value = u.groundElevation;
+                topInput.disabled = true;
+            }
+        } else {
+            if (topInput) topInput.disabled = false;
+        }
+    } else if (field === 'clearance' || field === 'name') {
+        u[field] = value;
+    } else {
+        u[field] = parseFloat(value);
+        if (field === 'groundElevation' && u.type === 'storm_drain') {
+            u.topElevation = u.groundElevation;
+            const topInput = document.getElementById(`topEl-${id}`);
+            if (topInput) topInput.value = u.groundElevation;
+        }
+    }
+}
+
+function renderUtilityRows() {
+    const container = document.getElementById('utilitiesContainer');
+    container.innerHTML = "";
+    
+    utilitiesList.forEach((u, idx) => {
+        const div = document.createElement('div');
+        div.className = 'utility-card';
+        const distanceLabel = idx === 0 ? "Distance from Entry Setback (ft)" : "Distance from Prev Utility (ft)";
+        const isStorm = u.type === 'storm_drain';
+
+        div.innerHTML = `
+            <div class="utility-header">
+                <span>Asset #${idx + 1}: ${u.name}</span>
+                <button class="btn-danger" onclick="removeUtilityRow(${u.id})">Remove</button>
+            </div>
+            <div class="form-row">
+                <div>
+                    <label>Label Tag</label>
+                    <input type="text" value="${u.name}" onchange="updateUtilityField(${u.id}, 'name', this.value)">
+                </div>
+                <div>
+                    <label>Structural Shape</label>
+                    <select onchange="updateUtilityField(${u.id}, 'type', this.value)">
+                        <option value="circle" ${u.type==='circle'?'selected':''}>Circle (Pipe/Cable)</option>
+                        <option value="square" ${u.type==='square'?'selected':''}>Square Vault</option>
+                        <option value="storm_drain" ${u.type==='storm_drain'?'selected':''}>Storm Drain (Surface Start)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div>
+                    <label>${distanceLabel}</label>
+                    <input type="number" value="${u.distanceFromPrev}" onchange="updateUtilityField(${u.id}, 'distanceFromPrev', this.value)">
+                </div>
+                <div>
+                    <label>Outer Diam / Width (in)</label>
+                    <input type="number" value="${u.size}" onchange="updateUtilityField(${u.id}, 'size', this.value)">
+                </div>
+            </div>
+            <div class="form-row">
+                <div>
+                    <label>Ground Elevation (ft)</label>
+                    <input type="number" value="${u.groundElevation}" onchange="updateUtilityField(${u.id}, 'groundElevation', this.value)">
+                </div>
+                <div>
+                    <label>Steer Mode Path</label>
+                    <select onchange="updateUtilityField(${u.id}, 'clearance', this.value)">
+                        <option value="under" ${u.clearance==='under'?'selected':''}>Bore Path UNDER</option>
+                        <option value="over" ${u.clearance==='over'?'selected':''}>Bore Path OVER</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div>
+                    <label>Top Elevation (ft)</label>
+                    <input type="number" id="topEl-${u.id}" value="${u.topElevation}" ${isStorm ? 'disabled' : ''} onchange="updateUtilityField(${u.id}, 'topElevation', this.value)">
+                </div>
+                <div>
+                    <label>Bottom Elevation (ft)</label>
+                    <input type="number" value="${u.bottomElevation}" onchange="updateUtilityField(${u.id}, 'bottomElevation', this.value)">
+                </div>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function calculateBore() {
+    const errorBox = document.getElementById('errorBox');
+    if(errorBox) { errorBox.style.display = 'none'; errorBox.innerText = ""; }
+
+    const startElev = parseFloat(document.getElementById('startElev').value);
+    const P0 = parseFloat(document.getElementById('entryPitch').value);
+    const rodL = parseFloat(document.getElementById('rodLength').value);
+    const targetDepth = parseFloat(document.getElementById('targetDepth').value);
+    const maxBend = parseFloat(document.getElementById('maxBend').value);
+    const desiredSetback = parseFloat(document.getElementById('desiredSetback').value);
+    const safetyBuffer = parseFloat(document.getElementById('safetyBuffer').value);
+    const minSurfaceDepth = parseFloat(document.getElementById('minSurfaceDepth').value);
+    const activeSelection = document.getElementById('startingPlan').value;
+    const distanceToFinish = parseFloat(document.getElementById('distanceToFinish').value);
+    const finishElev = parseFloat(document.getElementById('finishElev').value);
+    const exitDepth = parseFloat(document.getElementById('exitDepth').value);
+
+    document.getElementById('customSetbackGroup').style.display = (activeSelection === 'custom') ? 'block' : 'none';
+
+    if (isNaN(startElev) || isNaN(P0) || isNaN(rodL) || isNaN(targetDepth) || isNaN(maxBend) || rodL <= 0 || targetDepth <= 0 || maxBend <= 0 || isNaN(distanceToFinish)) {
+        showError("Verify parameter configuration inputs contain valid positive values.");
+        return;
+    }
+
+    const shortPlan = generateMinimumCurvatureProfile(P0, targetDepth, rodL, maxBend);
+    const medPlan = generateMinimumCurvatureProfile(P0, targetDepth, rodL, maxBend * 0.6);
+    const longPlan = generateMinimumCurvatureProfile(P0, targetDepth, rodL, maxBend * 0.35);
+
+    if (!shortPlan.possible) {
+        showError(`Bend constraints (${maxBend}%) are geometrically incapable of converting to horizontal at this depth layout.`);
+        return;
+    }
+
+    let customPlan = { possible: false, errorMsg: "Input valid desired entry setback footprint value." };
+    if (!isNaN(desiredSetback) && desiredSetback > 0) {
+        if (desiredSetback < shortPlan.naturalSetback) {
+            customPlan.errorMsg = `Tighter than maximum safe bending capabilities (${shortPlan.naturalSetback.toFixed(1)} ft).`;
+        } else {
+            customPlan = generateMinimumCurvatureProfile(P0, targetDepth, rodL, maxBend, desiredSetback);
+            customPlan.isCustom = true;
+        }
+    }
+
+    let activePlanData = shortPlan;
+    if (activeSelection === 'medium') activePlanData = medPlan;
+    if (activeSelection === 'long') activePlanData = longPlan;
+    if (activeSelection === 'custom' && customPlan.possible) activePlanData = customPlan;
+
+    renderOutput('shortOut', shortPlan);
+    renderOutput('medOut', medPlan);
+    renderOutput('longOut', longPlan);
+    if(customPlan.possible) renderOutput('customOut', customPlan);
+    else document.getElementById('customOut').innerHTML = `<p style="color:var(--danger); font-size:0.8rem; font-style:italic;">⚠️ ${customPlan.errorMsg}</p>`;
+
+    ['shortCard', 'medCard', 'longCard', 'customCard'].forEach(id => document.getElementById(id).classList.remove('active'));
+    document.getElementById(activeSelection + 'Card').classList.add('active');
+
+    shortPlan.label = "Short"; shortPlan.color = "#e11d48";
+    medPlan.label = "Medium"; medPlan.color = "#2563eb";
+    longPlan.label = "Long"; longPlan.color = "#16a34a";
+    customPlan.label = "Custom"; customPlan.color = "#9333ea";
+
+    let entryPlansList = [shortPlan, medPlan, longPlan];
+    if(customPlan.possible) entryPlansList.push(customPlan);
+    
+    drawEntryGraph(entryPlansList, targetDepth, activeSelection);
+    buildAndDrawContinuousPlan(activePlanData, startElev, targetDepth, rodL, maxBend, exitDepth, safetyBuffer, minSurfaceDepth, distanceToFinish, finishElev);
+}
+
+function generateMinimumCurvatureProfile(entryPitch, targetDepth, rodL, bendPerRod, targetSetback) {
+    let profile = { possible: true, rods: [], setback: 0, totalRods: 0, naturalSetback: 0 };
+    
+    let theta0 = Math.atan(entryPitch / 100);
+    let thetaChangePerRod = Math.atan(bendPerRod / 100);
+    let k = thetaChangePerRod / rodL; 
+
+    let curveDepth = (1 - Math.cos(theta0)) / k;
+    if (curveDepth > targetDepth) {
+        profile.possible = false;
+        return profile;
+    }
+
+    let straightDepth = targetDepth - curveDepth;
+    let straightLength = straightDepth / Math.sin(theta0);
+    let curveLength = theta0 / k;
+    
+    let naturalX = (straightLength * Math.cos(theta0)) + (Math.sin(theta0) / k);
+    profile.naturalSetback = naturalX;
+
+    let flatLengthNeeded = 0;
+    if (targetSetback !== undefined && targetSetback > naturalX) {
+        flatLengthNeeded = targetSetback - naturalX;
+    }
+
+    let totalPathLength = straightLength + curveLength + flatLengthNeeded;
+    let totalRodsCount = Math.ceil(totalPathLength / rodL);
+
+    for (let i = 1; i <= totalRodsCount; i++) {
+        let s = Math.min(i * rodL, totalPathLength);
+        let x = 0, y = 0, theta = 0;
+
+        if (s <= straightLength) {
+            x = s * Math.cos(theta0);
+            y = s * Math.sin(theta0);
+            theta = theta0;
+        } else if (s <= straightLength + curveLength) {
+            let s_curve = s - straightLength;
+            theta = theta0 - (k * s_curve);
+            x = (straightLength * Math.cos(theta0)) + ((Math.sin(theta0) - Math.sin(theta)) / k);
+            y = (straightLength * Math.sin(theta0)) + ((Math.cos(theta) - Math.cos(theta0)) / k);
+        } else {
+            let s_flat = s - (straightLength + curveLength);
+            x = naturalX + s_flat;
+            y = targetDepth;
+            theta = 0;
+        }
+
+        profile.rods.push({
+            rodNum: i,
+            pitch: Math.max(0, Math.tan(theta) * 100),
+            x: x,
+            y: y
+        });
+    }
+
+    profile.setback = Math.max(...profile.rods.map(r => r.x));
+    profile.totalRods = totalPathLength / rodL;
+    return profile;
+}
+
+function buildAndDrawContinuousPlan(entryPlan, startElev, targetDepth, rodL, maxBend, exitDepth, safetyBuffer, minSurfaceDepth, distanceToFinish, finishElev) {
+    let continuousRods = [];
+    let groundPoints = [{x: 0, el: startElev}, {x: entryPlan.setback, el: startElev}];
+    let rodCounter = 0;
+
+    entryPlan.rods.forEach(r => {
+        rodCounter++;
+        continuousRods.push({
+            rodNum: rodCounter,
+            type: "Entry Setback Rod",
+            rowClass: "row-setback",
+            badgeClass: "badge-setback",
+            x: r.x,
+            el: startElev - r.y,
+            pitch: r.pitch,
+            fromGround: r.y
+        });
+    });
+
+    let mappedUtilities = [];
+    let currentUtilX = entryPlan.setback;
+
+    utilitiesList.forEach((u, idx) => {
+        currentUtilX += u.distanceFromPrev;
+        mappedUtilities.push({ ...u, absoluteX: currentUtilX });
+        groundPoints.push({ x: currentUtilX, el: u.groundElevation });
+    });
+
+    let lastAssetX = mappedUtilities.length > 0 ? mappedUtilities[mappedUtilities.length - 1].absoluteX : entryPlan.setback;
+    let finishX = lastAssetX + distanceToFinish;
+    groundPoints.push({ x: finishX, el: finishElev });
+
+    let exitRodsCount = 0;
+    let exitCurveTracks = [];
+    let exitCurveWidthX = 0;
+
+    if (exitDepth < targetDepth) {
+        let deltaH = targetDepth - exitDepth;
+        let thetaChangePerRod = Math.atan(maxBend / 100);
+        let k = thetaChangePerRod / rodL;
+        let cosThetaMax = 1 - (k * deltaH) / 2;
+
+        if (cosThetaMax >= -1 && cosThetaMax <= 1) {
+            let thetaMax = Math.acos(cosThetaMax);
+            let arcLen = thetaMax / k;
+            let totalExitDistance = arcLen * 2;
+            exitRodsCount = Math.ceil(totalExitDistance / rodL);
+
+            let exitProgress = 0;
+            for (let j = 1; j <= exitRodsCount; j++) {
+                exitProgress += rodL;
+                let s = Math.min(exitProgress, totalExitDistance);
+                let currentArcX = 0, currentArcY = 0, currentPitchRad = 0;
+
+                if (s <= arcLen) {
+                    currentPitchRad = k * s;
+                    currentArcX = Math.sin(currentPitchRad) / k;
+                    currentArcY = (1 - Math.cos(currentPitchRad)) / k;
+                } else {
+                    let s2 = s - arcLen;
+                    let pitchAtHalf = k * arcLen;
+                    currentPitchRad = pitchAtHalf - (k * s2);
+                    let halfX = Math.sin(pitchAtHalf) / k;
+                    let halfY = (1 - Math.cos(pitchAtHalf)) / k;
+
+                    currentArcX = halfX + (Math.sin(pitchAtHalf) - Math.sin(currentPitchRad)) / k;
+                    currentArcY = halfY + (Math.cos(currentPitchRad) - Math.cos(pitchAtHalf)) / k;
+                }
+                exitCurveTracks.push({ dx: currentArcX, dy: currentArcY, radPitch: currentPitchRad, s: s, totalDist: totalExitDistance });
+            }
+            if(exitCurveTracks.length > 0) {
+                exitCurveWidthX = exitCurveTracks[exitCurveTracks.length - 1].dx;
+            }
+        }
+    }
+
+    let flatSectionStartX = entryPlan.setback;
+    let flatSectionEndX = finishX - exitCurveWidthX;
+    
+    if (flatSectionEndX < flatSectionStartX) {
+        showError("Design Alert: 'Distance to Finish' creates layout values too constrained for chosen bending radius constraints.");
+        flatSectionEndX = flatSectionStartX + 10; 
+        finishX = flatSectionEndX + exitCurveWidthX;
+    }
+
+    let runningX = flatSectionStartX;
+    while (runningX < flatSectionEndX) {
+        rodCounter++;
+        runningX = Math.min(runningX + rodL, flatSectionEndX);
+        let currentGroundHeight = getInterpolatedGround(runningX, groundPoints);
+        let boreElevationValue = startElev - targetDepth;
+
+        continuousRods.push({
+            rodNum: rodCounter,
+            type: "Mainline Run Rod",
+            rowClass: "row-flat",
+            badgeClass: "badge-flat",
+            x: runningX,
+            el: boreElevationValue,
+            pitch: 0,
+            fromGround: currentGroundHeight - boreElevationValue
+        });
+    }
+
+    exitCurveTracks.forEach(track => {
+        rodCounter++;
+        let targetX = flatSectionEndX + track.dx;
+        let boreElevationValue = (startElev - targetDepth) + track.dy;
+        let currentGroundHeight = getInterpolatedGround(targetX, groundPoints);
+
+        continuousRods.push({
+            rodNum: rodCounter,
+            type: track.s >= track.totalDist ? "Exit Balanced Flat Hit" : "Exit Path Rod",
+            rowClass: "row-exit",
+            badgeClass: "badge-exit",
+            x: targetX,
+            el: boreElevationValue,
+            pitch: Math.max(0, Math.tan(track.radPitch) * 100),
+            fromGround: currentGroundHeight - boreElevationValue
+        });
+    });
+
+    renderMasterLog(continuousRods);
+    drawBorePlanGraph(continuousRods, mappedUtilities, groundPoints, safetyBuffer, minSurfaceDepth, startElev, targetDepth);
+}
+
+function getInterpolatedGround(x, groundPoints) {
+    let pts = [...groundPoints].sort((a,b) => a.x - b.x);
+    if(x <= pts[0].x) return pts[0].el;
+    if(x >= pts[pts.length-1].x) return pts[pts.length-1].el;
+    
+    for(let i=0; i<pts.length-1; i++) {
+        if(x >= pts[i].x && x <= pts[i+1].x) {
+            let ratio = (x - pts[i].x) / (pts[i+1].x - pts[i].x);
+            return pts[i].el + ratio * (pts[i+1].el - pts[i].el);
+        }
+    }
+    return pts[0].el;
+}
+
+function renderMasterLog(fullRodsList) {
+    const tbody = document.getElementById('masterLogBody');
+    tbody.innerHTML = "";
+    
+    fullRodsList.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.className = r.rowClass;
+        tr.innerHTML = `
+            <td><b>Rod ${r.rodNum}</b></td>
+            <td><span class="badge ${r.badgeClass}">${r.type}</span></td>
+            <td>${r.x.toFixed(1)} ft</td>
+            <td>${r.el.toFixed(1)} ft Reference</td>
+            <td><b>${r.fromGround.toFixed(1)} ft Deep</b></td>
+            <td><b>${r.pitch.toFixed(1)}%</b></td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function drawAxisTicks(ctx, minX, maxX, minEl, maxEl, getWX, getWY, canvasHeight, rodL) {
+    ctx.fillStyle = '#64748b';
+    ctx.font = "9px sans-serif";
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 0.5;
+
+    let startTickX = Math.ceil(minX / rodL) * rodL;
+    for (let x = startTickX; x <= maxX; x += rodL) {
+        let wx = getWX(x);
+        ctx.beginPath(); ctx.moveTo(wx, getWY(minEl)); ctx.lineTo(wx, getWY(maxEl)); ctx.stroke();
+        ctx.beginPath(); ctx.strokeStyle = '#475569'; ctx.lineWidth = 1.5;
+        ctx.moveTo(wx, canvasHeight - 30); ctx.lineTo(wx, canvasHeight - 24); ctx.stroke();
+        ctx.fillText(`${x.toFixed(0)}'`, wx - 6, canvasHeight - 12);
+        ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5;
+    }
+
+    let totalHeightRange = maxEl - minEl;
+    let tickStepY = totalHeightRange > 35 ? 5 : 2;
+    let startTickY = Math.ceil(minEl / tickStepY) * tickStepY;
+
+    for (let el = startTickY; el <= maxEl; el += tickStepY) {
+        let wy = getWY(el);
+        ctx.beginPath(); ctx.moveTo(getWX(minX), wy); ctx.lineTo(getWX(maxX), wy); ctx.stroke();
+        ctx.beginPath(); ctx.strokeStyle = '#475569'; ctx.lineWidth = 1.5;
+        ctx.moveTo(40, wy); ctx.lineTo(46, wy); ctx.stroke();
+        ctx.fillText(`${el.toFixed(0)}'`, 14, wy + 3);
+        ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5;
+    }
+}
+
+function drawEntryGraph(plans, targetDepth, activeSelection) {
+    const canvas = document.getElementById('entryCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    let maxSetback = Math.max(...plans.map(p => p.setback), 50);
+    let marginX = 60, marginY = 40;
+    let maxX = maxSetback * 1.1;
+    let maxY = targetDepth * 1.3;
+    let scaleX = (canvas.width - marginX * 2) / maxX;
+    let scaleY = (canvas.height - marginY * 2 - 20) / maxY;
+
+    let rodL = parseFloat(document.getElementById('rodLength').value) || 15;
+
+    // Added identical background ticks/grids setup to match graph 2 
+    ctx.fillStyle = '#64748b';
+    ctx.font = "9px sans-serif";
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 0.5;
+
+    // X-Axis Scale Grid Rendering
+    for (let x = 0; x <= maxX; x += rodL) {
+        let wx = marginX + x * scaleX;
+        ctx.beginPath(); ctx.moveTo(wx, marginY); ctx.lineTo(wx, canvas.height - marginY - 20); ctx.stroke();
+        ctx.beginPath(); ctx.strokeStyle = '#475569'; ctx.lineWidth = 1.5;
+        ctx.moveTo(wx, canvas.height - marginY - 20); ctx.lineTo(wx, canvas.height - marginY - 14); ctx.stroke();
+        ctx.fillText(`${x.toFixed(0)}'`, wx - 6, canvas.height - marginY - 2);
+        ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5;
+    }
+
+    // Y-Axis Depth Scale Grid Rendering (Shows positive depth increments going down)
+    let tickStepY = targetDepth > 25 ? 5 : 2;
+    for (let y = 0; y <= maxY; y += tickStepY) {
+        let wy = marginY + y * scaleY;
+        ctx.beginPath(); ctx.moveTo(marginX, wy); ctx.lineTo(canvas.width - marginX, wy); ctx.stroke();
+        ctx.beginPath(); ctx.strokeStyle = '#475569'; ctx.lineWidth = 1.5;
+        ctx.moveTo(marginX - 6, wy); ctx.lineTo(marginX, wy); ctx.stroke();
+        ctx.fillText(`${y.toFixed(0)}'`, marginX - 24, wy + 3);
+        ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5;
+    }
+
+    // Baseline Anchor Definition Trace
+    ctx.beginPath(); ctx.strokeStyle = '#475569'; ctx.lineWidth = 2;
+    ctx.moveTo(marginX, marginY); ctx.lineTo(canvas.width - marginX, marginY); ctx.stroke();
+    ctx.fillStyle = '#475569'; ctx.font = "bold 11px sans-serif"; ctx.fillText("Ground Entry Target Datum Baseline (0.0 ft)", marginX, marginY - 10);
+
+    plans.forEach(plan => {
+        let isSelected = (plan.label.toLowerCase() === activeSelection);
+        ctx.beginPath(); ctx.strokeStyle = plan.color; ctx.lineWidth = isSelected ? 4 : 1.5;
+        if(!isSelected) ctx.setLineDash([2, 3]);
+
+        let startX = marginX + (maxSetback - plan.setback) * scaleX;
+        ctx.moveTo(startX, marginY);
+
+        plan.rods.forEach(r => {
+            ctx.lineTo(startX + r.x * scaleX, marginY + r.y * scaleY);
+        });
+        ctx.stroke(); ctx.setLineDash([]);
+    });
+}
+
+function drawBorePlanGraph(masterRods, utilities, groundPoints, buffer, ceiling, startElev, targetDepth) {
+    const canvas = document.getElementById('borePlanCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    let minX = 0;
+    let maxX = Math.max(...masterRods.map(p => p.x), 150);
+    let minEl = Math.min(...masterRods.map(p => p.el), startElev - targetDepth * 1.6);
+    let maxEl = Math.max(...groundPoints.map(g => g.el), startElev + 10);
+
+    let marginX = 60, marginY = 40;
+    let scaleX = (canvas.width - marginX * 2) / (maxX - minX);
+    let scaleY = (canvas.height - marginY * 2 - 20) / (maxEl - minEl);
+
+    function getWX(x) { return marginX + (x - minX) * scaleX; }
+    function getWY(el) { return canvas.height - marginY - 20 - (el - minEl) * scaleY; }
+
+    let rodL = parseFloat(document.getElementById('rodLength').value) || 15;
+    drawAxisTicks(ctx, minX, maxX, minEl, maxEl, getWX, getWY, canvas.height, rodL);
+
+    ctx.beginPath();
+    ctx.fillStyle = 'rgba(120, 53, 15, 0.06)';
+    let sortedGround = [...groundPoints].sort((a,b) => a.x - b.x);
+    ctx.moveTo(getWX(sortedGround[0].x), getWY(minEl)); 
+    sortedGround.forEach(pt => ctx.lineTo(getWX(pt.x), getWY(pt.el)));
+    ctx.lineTo(getWX(sortedGround[sortedGround.length-1].x), getWY(minEl));
+    ctx.fill();
+
+    ctx.beginPath(); ctx.strokeStyle = '#78350f'; ctx.lineWidth = 3;
+    sortedGround.forEach((pt, i) => {
+        if(i === 0) ctx.moveTo(getWX(pt.x), getWY(pt.el));
+        else ctx.lineTo(getWX(pt.x), getWY(pt.el));
+    });
+    ctx.stroke();
+
+    ctx.beginPath(); ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
+    sortedGround.forEach((pt, i) => {
+        if(i === 0) ctx.moveTo(getWX(pt.x), getWY(pt.el - ceiling));
+        else ctx.lineTo(getWX(pt.x), getWY(pt.el - ceiling));
+    });
+    ctx.stroke(); ctx.setLineDash([]);
+
+    utilities.forEach(u => {
+        let cx = getWX(u.absoluteX);
+        let cyTop = getWY(u.topElevation);
+        let cyBot = getWY(u.bottomElevation);
+        let hPixels = Math.abs(cyBot - cyTop);
+        let wPixels = (u.size / 12) * scaleX;
+        let bufferPixels = buffer * scaleY;
+
+        let closestRod = masterRods.reduce((prev, curr) => Math.abs(curr.x - u.absoluteX) < Math.abs(prev.x - u.absoluteX) ? curr : prev);
+        let isBreached = false;
+        
+        if (u.clearance === 'under' && closestRod.el > (u.bottomElevation - buffer)) isBreached = true;
+        if (u.clearance === 'over' && closestRod.el < (u.topElevation + buffer)) isBreached = true;
+
+        ctx.fillStyle = isBreached ? 'rgba(239, 68, 68, 0.15)' : 'rgba(22, 163, 74, 0.08)';
+        ctx.strokeStyle = isBreached ? 'rgba(239, 68, 68, 0.5)' : 'rgba(22, 163, 74, 0.3)';
+        ctx.lineWidth = 1.5; ctx.setLineDash([3, 2]);
+
+        if (u.type === 'circle') {
+            let rad = (u.size / 2 / 12) * scaleY;
+            let centerCY = getWY((u.topElevation + u.bottomElevation) / 2);
+            ctx.beginPath(); ctx.arc(cx, centerCY, rad + bufferPixels, 0, 2*Math.PI); ctx.fill(); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = isBreached ? '#e11d48' : '#475569';
+            ctx.beginPath(); ctx.arc(cx, centerCY, rad, 0, 2*Math.PI); ctx.fill();
+        } else {
+            ctx.fillRect(cx - wPixels/2 - bufferPixels, (u.type==='storm_drain'? cyTop : cyTop - bufferPixels), wPixels + bufferPixels*2, hPixels + (u.type==='storm_drain'? bufferPixels : bufferPixels*2));
+            ctx.strokeRect(cx - wPixels/2 - bufferPixels, (u.type==='storm_drain'? cyTop : cyTop - bufferPixels), wPixels + bufferPixels*2, hPixels + (u.type==='storm_drain'? bufferPixels : bufferPixels*2));
+            ctx.setLineDash([]);
+            ctx.fillStyle = isBreached ? '#e11d48' : '#64748b';
+            ctx.fillRect(cx - wPixels/2, cyTop, wPixels, hPixels);
+        }
+
+        ctx.fillStyle = isBreached ? '#e11d48' : '#0f172a'; ctx.font = "bold 10px sans-serif";
+        ctx.fillText(`${u.name}`, cx - 25, cyTop - 8);
+    });
+
+    ctx.beginPath(); ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 4;
+    ctx.moveTo(getWX(0), getWY(startElev)); 
+    masterRods.forEach((r) => {
+        ctx.lineTo(getWX(r.x), getWY(r.el));
+    });
+    ctx.stroke();
+
+    masterRods.forEach(r => {
+        ctx.beginPath(); ctx.fillStyle = '#a855f7'; ctx.arc(getWX(r.x), getWY(r.el), 3, 0, 2*Math.PI); ctx.fill();
+    });
+}
+
+function renderOutput(elementId, plan) {
+    if (!plan || !plan.possible) {
+        document.getElementById(elementId).innerHTML = `<p style="color:#94a3b8; font-style:italic;">⚠️ N/A</p>`;
+        return;
+    }
+
+    let html = `
+        <p style="font-size:0.8rem;"><strong>Setback Footprint:</strong> ${plan.setback.toFixed(1)} ft</p>
+        <p style="font-size:0.8rem; margin-bottom:4px;"><strong>Rods to Floor:</strong> ${plan.totalRods.toFixed(1)}</p>
+        <div class="rod-list">
+    `;
+    plan.rods.forEach(r => {
+        html += `Rod ${r.rodNum}: Pitch <b>${r.pitch.toFixed(1)}%</b><br>`;
+    });
+    html += `</div>`;
+    document.getElementById(elementId).innerHTML = html;
+}
+
+function showError(msg) {
+    const errorBox = document.getElementById('errorBox');
+    if(errorBox) { errorBox.innerText = msg; errorBox.style.display = 'block'; }
+}
+
+window.onload = function() {
+    addUtilityRow();
+};
+</script>
+</body>
+</html>
