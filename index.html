@@ -114,7 +114,7 @@
 <body>
 
 <header>
-    <h1>HDD Dynamic Plan & Profile Designer</h1>
+    <h1>HDD Professional Alignment Plan & Profile Designer</h1>
 </header>
 
 <div class="print-btn-container">
@@ -187,7 +187,7 @@
         <div class="form-row">
             <div class="form-group">
                 <label>Distance to Finish (ft)</label>
-                <input type="number" id="distanceToFinish" value="65" step="1">
+                <input type="number" id="distanceToFinish" value="85" step="1">
             </div>
             <div class="form-group">
                 <label>Ground El. at Finish (ft)</label>
@@ -204,7 +204,7 @@
 
     <div class="main-panel">
         <div class="visualizer-container">
-            <h2>📊 Graph 1: Entry Path & Setback Analysis</h2>
+            <h2>📊 Graph 1: Entry Path & Setback Analysis (Cosine Curves)</h2>
             <canvas id="entryCanvas" width="900" height="260"></canvas>
             <div class="cards-grid" style="margin-top: 15px;">
                 <div class="card" id="shortCard"><h3>Short Path</h3><div id="shortOut"></div></div>
@@ -215,7 +215,7 @@
         </div>
 
         <div class="visualizer-container">
-            <h2>🚧 Graph 2: Continuous Alignment Profile (Entry Stake to Exit Finish)</h2>
+            <h2>🚧 Graph 2: Continuous Alignment Profile (Dynamic Obstacle Avoidance Routing)</h2>
             <canvas id="borePlanCanvas" width="900" height="380"></canvas>
         </div>
 
@@ -252,7 +252,7 @@ function addUtilityRow() {
         name: "Utility Line " + (utilitiesList.length + 1),
         type: "circle",
         size: 12,
-        distanceFromPrev: isFirst ? 35 : 25, 
+        distanceFromPrev: isFirst ? 75 : 45, 
         groundElevation: 100.0,
         topElevation: 91.0,
         bottomElevation: 89.5,
@@ -305,7 +305,7 @@ function renderUtilityRows() {
     utilitiesList.forEach((u, idx) => {
         const div = document.createElement('div');
         div.className = 'utility-card';
-        const distanceLabel = idx === 0 ? "Distance from Entry Setback (ft)" : "Distance from Prev Utility (ft)";
+        const distanceLabel = idx === 0 ? "Distance from Entry Point X=0 (ft)" : "Distance from Prev Utility (ft)";
         const isStorm = u.type === 'storm_drain';
 
         div.innerHTML = `
@@ -389,12 +389,12 @@ function calculateBore() {
         return;
     }
 
-    const shortPlan = generateMinimumCurvatureProfile(P0, targetDepth, rodL, maxBend);
-    const medPlan = generateMinimumCurvatureProfile(P0, targetDepth, rodL, maxBend * 0.6);
-    const longPlan = generateMinimumCurvatureProfile(P0, targetDepth, rodL, maxBend * 0.35);
+    const shortPlan = generateCosineSmoothProfile(P0, targetDepth, rodL, maxBend);
+    const medPlan = generateCosineSmoothProfile(P0, targetDepth, rodL, maxBend * 0.6);
+    const longPlan = generateCosineSmoothProfile(P0, targetDepth, rodL, maxBend * 0.35);
 
     if (!shortPlan.possible) {
-        showError(`Bend constraints (${maxBend}%) are geometrically incapable of converting to horizontal at this depth layout.`);
+        showError(`Bend constraints (${maxBend}%) are geometrically incapable of converting horizontally within this layout configuration.`);
         return;
     }
 
@@ -403,7 +403,7 @@ function calculateBore() {
         if (desiredSetback < shortPlan.naturalSetback) {
             customPlan.errorMsg = `Tighter than maximum safe bending capabilities (${shortPlan.naturalSetback.toFixed(1)} ft).`;
         } else {
-            customPlan = generateMinimumCurvatureProfile(P0, targetDepth, rodL, maxBend, desiredSetback);
+            customPlan = generateCosineSmoothProfile(P0, targetDepth, rodL, maxBend, desiredSetback);
             customPlan.isCustom = true;
         }
     }
@@ -434,24 +434,36 @@ function calculateBore() {
     buildAndDrawContinuousPlan(activePlanData, startElev, targetDepth, rodL, maxBend, exitDepth, safetyBuffer, minSurfaceDepth, distanceToFinish, finishElev);
 }
 
-function generateMinimumCurvatureProfile(entryPitch, targetDepth, rodL, bendPerRod, targetSetback) {
+function generateCosineSmoothProfile(entryPitch, targetDepth, rodL, bendPerRod, targetSetback) {
     let profile = { possible: true, rods: [], setback: 0, totalRods: 0, naturalSetback: 0 };
-    
-    let theta0 = Math.atan(entryPitch / 100);
-    let thetaChangePerRod = Math.atan(bendPerRod / 100);
-    let k = thetaChangePerRod / rodL; 
+    if (bendPerRod <= 0) return { possible: false };
 
-    let curveDepth = (1 - Math.cos(theta0)) / k;
+    let approxRodsNeeded = (entryPitch / bendPerRod) * 1.5; 
+    let curveLength = Math.max(rodL * 2, approxRodsNeeded * rodL);
+
+    let curveDepth = 0;
+    let curveSetback = 0;
+    let step = 0.2; 
+    
+    for (let s = 0; s < curveLength; s += step) {
+        let progress = s / curveLength;
+        let factor = 0.5 * (1 + Math.cos(progress * Math.PI));
+        let p = entryPitch * factor;
+        let theta = Math.atan(p / 100);
+        curveDepth += step * Math.sin(theta);
+        curveSetback += step * Math.cos(theta);
+    }
+
     if (curveDepth > targetDepth) {
         profile.possible = false;
         return profile;
     }
 
     let straightDepth = targetDepth - curveDepth;
+    let theta0 = Math.atan(entryPitch / 100);
     let straightLength = straightDepth / Math.sin(theta0);
-    let curveLength = theta0 / k;
+    let naturalX = (straightLength * Math.cos(theta0)) + curveSetback;
     
-    let naturalX = (straightLength * Math.cos(theta0)) + (Math.sin(theta0) / k);
     profile.naturalSetback = naturalX;
 
     let flatLengthNeeded = 0;
@@ -462,42 +474,60 @@ function generateMinimumCurvatureProfile(entryPitch, targetDepth, rodL, bendPerR
     let totalPathLength = straightLength + curveLength + flatLengthNeeded;
     let totalRodsCount = Math.ceil(totalPathLength / rodL);
 
-    for (let i = 1; i <= totalRodsCount; i++) {
-        let s = Math.min(i * rodL, totalPathLength);
-        let x = 0, y = 0, theta = 0;
+    let currentX = 0;
+    let currentY = 0;
+    let currentS = 0;
 
-        if (s <= straightLength) {
-            x = s * Math.cos(theta0);
-            y = s * Math.sin(theta0);
-            theta = theta0;
-        } else if (s <= straightLength + curveLength) {
-            let s_curve = s - straightLength;
-            theta = theta0 - (k * s_curve);
-            x = (straightLength * Math.cos(theta0)) + ((Math.sin(theta0) - Math.sin(theta)) / k);
-            y = (straightLength * Math.sin(theta0)) + ((Math.cos(theta) - Math.cos(theta0)) / k);
+    for (let i = 1; i <= totalRodsCount; i++) {
+        let targetS = i * rodL;
+        if (targetS > totalPathLength) targetS = totalPathLength;
+        
+        for(let dist = currentS; dist < targetS; dist += step) {
+            let d = Math.min(step, targetS - dist);
+            let p = entryPitch;
+            
+            if (dist > straightLength) {
+                if (dist > straightLength + curveLength) {
+                    p = 0;
+                } else {
+                    let progress = (dist - straightLength) / curveLength;
+                    p = entryPitch * (0.5 * (1 + Math.cos(progress * Math.PI)));
+                }
+            }
+            let th = Math.atan(p / 100);
+            currentX += d * Math.cos(th);
+            currentY += d * Math.sin(th);
+        }
+        currentS = targetS;
+
+        let pitchToReport = 0;
+        if (currentS <= straightLength) {
+            pitchToReport = entryPitch;
+        } else if (currentS <= straightLength + curveLength) {
+            let progress = (currentS - straightLength) / curveLength;
+            pitchToReport = entryPitch * (0.5 * (1 + Math.cos(progress * Math.PI)));
         } else {
-            let s_flat = s - (straightLength + curveLength);
-            x = naturalX + s_flat;
-            y = targetDepth;
-            theta = 0;
+            pitchToReport = 0;
+            currentY = targetDepth; 
         }
 
         profile.rods.push({
             rodNum: i,
-            pitch: Math.max(0, Math.tan(theta) * 100),
-            x: x,
-            y: y
+            pitch: Math.max(0, pitchToReport),
+            x: currentX,
+            y: currentY
         });
     }
 
-    profile.setback = Math.max(...profile.rods.map(r => r.x));
+    profile.setback = currentX;
     profile.totalRods = totalPathLength / rodL;
     return profile;
 }
 
 function buildAndDrawContinuousPlan(entryPlan, startElev, targetDepth, rodL, maxBend, exitDepth, safetyBuffer, minSurfaceDepth, distanceToFinish, finishElev) {
     let continuousRods = [];
-    let groundPoints = [{x: 0, el: startElev}, {x: entryPlan.setback, el: startElev}];
+    // FIX 1: Map visual tracking directly starting from Absolute Stationing X=0
+    let groundPoints = [{x: 0, el: startElev}]; 
     let rodCounter = 0;
 
     entryPlan.rods.forEach(r => {
@@ -515,7 +545,8 @@ function buildAndDrawContinuousPlan(entryPlan, startElev, targetDepth, rodL, max
     });
 
     let mappedUtilities = [];
-    let currentUtilX = entryPlan.setback;
+    // FIX 2: Utility positions calculate horizontally from X=0 instead of stacking past entryPlan bounds
+    let currentUtilX = 0; 
 
     utilitiesList.forEach((u, idx) => {
         currentUtilX += u.distanceFromPrev;
@@ -524,7 +555,8 @@ function buildAndDrawContinuousPlan(entryPlan, startElev, targetDepth, rodL, max
     });
 
     let lastAssetX = mappedUtilities.length > 0 ? mappedUtilities[mappedUtilities.length - 1].absoluteX : entryPlan.setback;
-    let finishX = lastAssetX + distanceToFinish;
+    let baselineEndX = Math.max(lastAssetX, entryPlan.setback);
+    let finishX = baselineEndX + distanceToFinish;
     groundPoints.push({ x: finishX, el: finishElev });
 
     let exitRodsCount = 0;
@@ -580,22 +612,20 @@ function buildAndDrawContinuousPlan(entryPlan, startElev, targetDepth, rodL, max
         finishX = flatSectionEndX + exitCurveWidthX;
     }
 
-    // ACTIVE REACTIONARY STEERING CALCULATION LOOP
     let runningX = flatSectionStartX;
     let currentBoreEl = startElev - targetDepth;
     let currentPitch = 0;
 
+    // FIX 3: Calculation loop looks ahead further (65 feet) to react and dive down smoothly before reaching the zone
     while (runningX < flatSectionEndX) {
         rodCounter++;
         let nextX = Math.min(runningX + rodL, flatSectionEndX);
         let actualStepL = nextX - runningX;
 
-        // Default layout baseline reference
         let targetBoreEl = startElev - targetDepth; 
 
-        // Scan ahead dynamically for upcoming crossing conduits
         mappedUtilities.forEach(u => {
-            if (u.absoluteX >= runningX && u.absoluteX <= runningX + 45) {
+            if (u.absoluteX >= runningX && u.absoluteX <= runningX + 65) {
                 if (u.clearance === 'under') {
                     let clearanceCeiling = u.bottomElevation - safetyBuffer;
                     if (targetBoreEl > clearanceCeiling) {
@@ -610,14 +640,12 @@ function buildAndDrawContinuousPlan(entryPlan, startElev, targetDepth, rodL, max
             }
         });
 
-        // Maintain ceiling boundaries against shallow limits
         let currentGroundHeight = getInterpolatedGround(nextX, groundPoints);
         let absoluteCeilingLimit = currentGroundHeight - minSurfaceDepth;
         if (targetBoreEl > absoluteCeilingLimit) {
             targetBoreEl = absoluteCeilingLimit;
         }
 
-        // Steer vector matching limits to maximum structural pitch bend limits
         let heightDelta = targetBoreEl - currentBoreEl;
         let maxVerticalChange = (maxBend / 100) * actualStepL;
 
@@ -799,19 +827,18 @@ function drawBorePlanGraph(masterRods, utilities, groundPoints, buffer, ceiling,
     let minX = 0;
     let maxX = Math.max(...masterRods.map(p => p.x), 150);
     
-    // Expand upper graph limits safely so surface-level features like Storm Drains don't clip coordinates out of bounds
-    let rawMinEl = Math.min(...masterRods.map(p => p.el), startElev - targetDepth * 1.6);
-    let rawMaxEl = Math.max(...groundPoints.map(g => g.el), ...utilities.map(u => u.topElevation), startElev + 10);
+    let rawMinEl = Math.min(...masterRods.map(p => p.el), startElev - targetDepth * 1.8);
+    let rawMaxEl = Math.max(...groundPoints.map(g => g.el), ...utilities.map(u => u.topElevation), startElev + 15);
     let elDifference = rawMaxEl - rawMinEl;
 
     let minEl, maxEl;
     if (elDifference < 30) {
         let centerEl = (rawMinEl + rawMaxEl) / 2;
-        minEl = centerEl - 20;
-        maxEl = centerEl + 20;
+        minEl = centerEl - 25;
+        maxEl = centerEl + 25;
     } else {
         minEl = rawMinEl - (elDifference * 0.15);
-        maxEl = rawMaxEl + (elDifference * 0.20); // Elevated padding overhead
+        maxEl = rawMaxEl + (elDifference * 0.25); 
     }
 
     let marginX = 60, marginY = 40;
@@ -825,7 +852,7 @@ function drawBorePlanGraph(masterRods, utilities, groundPoints, buffer, ceiling,
     drawAxisTicks(ctx, minX, maxX, minEl, maxEl, getWX, getWY, canvas.height, rodL);
 
     ctx.beginPath();
-    ctx.fillStyle = 'rgba(120, 53, 15, 0.06)';
+    ctx.fillStyle = 'rgba(120, 53, 15, 0.05)';
     let sortedGround = [...groundPoints].sort((a,b) => a.x - b.x);
     ctx.moveTo(getWX(sortedGround[0].x), getWY(minEl)); 
     sortedGround.forEach(pt => ctx.lineTo(getWX(pt.x), getWY(pt.el)));
@@ -839,7 +866,7 @@ function drawBorePlanGraph(masterRods, utilities, groundPoints, buffer, ceiling,
     });
     ctx.stroke();
 
-    ctx.beginPath(); ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.strokeStyle = 'rgba(239, 68, 68, 0.35)'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 4]);
     sortedGround.forEach((pt, i) => {
         if(i === 0) ctx.moveTo(getWX(pt.x), getWY(pt.el - ceiling));
         else ctx.lineTo(getWX(pt.x), getWY(pt.el - ceiling));
@@ -860,8 +887,8 @@ function drawBorePlanGraph(masterRods, utilities, groundPoints, buffer, ceiling,
         if (u.clearance === 'under' && closestRod.el > (u.bottomElevation - buffer)) isBreached = true;
         if (u.clearance === 'over' && closestRod.el < (u.topElevation + buffer)) isBreached = true;
 
-        ctx.fillStyle = isBreached ? 'rgba(239, 68, 68, 0.15)' : 'rgba(22, 163, 74, 0.08)';
-        ctx.strokeStyle = isBreached ? 'rgba(239, 68, 68, 0.5)' : 'rgba(22, 163, 74, 0.3)';
+        ctx.fillStyle = isBreached ? 'rgba(239, 68, 68, 0.18)' : 'rgba(22, 163, 74, 0.08)';
+        ctx.strokeStyle = isBreached ? 'rgba(239, 68, 68, 0.6)' : 'rgba(22, 163, 74, 0.35)';
         ctx.lineWidth = 1.5; ctx.setLineDash([3, 2]);
 
         if (u.type === 'circle') {
@@ -872,7 +899,6 @@ function drawBorePlanGraph(masterRods, utilities, groundPoints, buffer, ceiling,
             ctx.fillStyle = isBreached ? '#e11d48' : '#475569';
             ctx.beginPath(); ctx.arc(cx, centerCY, rad, 0, 2*Math.PI); ctx.fill();
         } else {
-            // Calculated dynamic ceiling bounding limits safely so buffers do not cross chart frame ceilings
             let rectTopY = (u.type === 'storm_drain') ? cyTop : cyTop - bufferPixels;
             let rectHeight = (u.type === 'storm_drain') ? hPixels + bufferPixels : hPixels + (bufferPixels * 2);
 
@@ -884,7 +910,7 @@ function drawBorePlanGraph(masterRods, utilities, groundPoints, buffer, ceiling,
         }
 
         ctx.fillStyle = isBreached ? '#e11d48' : '#0f172a'; ctx.font = "bold 10px sans-serif";
-        ctx.fillText(`${u.name}`, cx - 25, cyTop - 8);
+        ctx.fillText(`${u.name}`, cx - 25, cyTop - 10);
     });
 
     ctx.beginPath(); ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 4;
